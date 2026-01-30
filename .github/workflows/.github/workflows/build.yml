@@ -1,0 +1,97 @@
+name: Build MetinPythonLibV2 (32-bit)
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-2019
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+      
+    - name: Setup Python 2.7 (32-bit)
+      run: |
+        Invoke-WebRequest -Uri "https://www.python.org/ftp/python/2.7.18/python-2.7.18.msi" -OutFile "python-2.7.18.msi"
+        Start-Process msiexec.exe -Wait -ArgumentList '/i python-2.7.18.msi /quiet InstallAllUsers=1 PrependPath=1 TargetDir=C:\Python27'
+        $env:Path = "C:\Python27;C:\Python27\Scripts;" + $env:Path
+        [Environment]::SetEnvironmentVariable("Path", $env:Path, [System.EnvironmentVariableTarget]::Machine)
+      
+    - name: Add MSBuild to PATH
+      uses: microsoft/setup-msbuild@v1.1
+      with:
+        vs-version: '16.11'
+    
+    - name: Setup vcpkg
+      run: |
+        git clone https://github.com/microsoft/vcpkg.git C:\vcpkg
+        cd C:\vcpkg
+        .\bootstrap-vcpkg.bat
+        .\vcpkg integrate install
+    
+    - name: Install dependencies
+      run: |
+        cd C:\vcpkg
+        .\vcpkg install cpprestsdk[default-features,websockets]:x86-windows-static
+        .\vcpkg install curl[core,openssl]:x86-windows-static
+        .\vcpkg install jsoncpp:x86-windows-static
+        .\vcpkg install websocketpp:x86-windows-static
+        .\vcpkg install boost-system:x86-windows-static
+        .\vcpkg install boost-asio:x86-windows-static
+        .\vcpkg install boost-thread:x86-windows-static
+    
+    - name: Build solution
+      run: |
+        msbuild MetinPythonLibV2.sln /p:Configuration=Release /p:Platform=Win32 /p:VcpkgTriplet=x86-windows-static /p:VcpkgRoot=C:\vcpkg /m
+    
+    - name: Upload DLL artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: MetinPythonLibV2-32bit-DLL
+        path: |
+          **/Release/*.dll
+          **/Win32/Release/*.dll
+          MetinPythonLib/Release/*.dll
+        if-no-files-found: error
+    
+    - name: List build output (debug)
+      if: always()
+      run: |
+        Get-ChildItem -Recurse -Filter "*.dll" | Select-Object FullName
+        Get-ChildItem -Recurse -Path "MetinPythonLib" | Where-Object { $_.Extension -eq ".dll" } | Select-Object FullName
+```
+
+### 5️⃣ Commit (Kaydet)
+
+Sağ üstte yeşil **"Commit changes..."** butonu olacak. Ona tıklayın ve açılan pencerede tekrar **"Commit changes"** butonuna tıklayın.
+
+### 6️⃣ Workflow'u Çalıştırın
+
+- **Actions** sekmesine tekrar gidin
+- Sol menüde **"Build MetinPythonLibV2 (32-bit)"** yazısını göreceksiniz
+- Ona tıklayın
+- Sağ tarafta **"Run workflow"** butonu görünecek
+- **Run workflow** > **Run workflow** tıklayın
+
+---
+
+## 🖼️ Görsel Yardım:
+```
+Actions sekmesi
+    ↓
+"Skip this and set up a workflow yourself" ← BURAYA TIKLA
+    ↓
+Dosya editörü açılır
+    ↓
+Yukarıdaki YAML kodunu yapıştır
+    ↓
+"Commit changes" butonuna tıkla
+    ↓
+Actions sekmesine geri dön
+    ↓
+"Run workflow" tıkla
